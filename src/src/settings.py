@@ -60,11 +60,11 @@ INSTALLED_APPS = [
 
     # Custom apps
     'src.user_account',
-    'desktop_apis.price_api',
-    'desktop_apis.app_management', 
-    'web_apis.blog',
-    'web_apis.contact',
-    'web_apis.evigdia_services',
+    'src.desktop_apis.price_api',
+    'src.desktop_apis.app_management',
+    'src.web_apis.blog',
+    'src.web_apis.contact',
+    'src.web_apis.evigdia_services',
     
     # 'user_account',
     # 'desktop-apis.price_api',
