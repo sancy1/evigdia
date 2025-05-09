@@ -13,7 +13,7 @@ sys.path.append(BASE_DIR)  # Outer src directory
 sys.path.append(PROJECT_DIR)  # Project root
 
 # Set Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'src.settings')  # Changed from src.src.settings
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'src.src.settings')  # Changed from src.src.settings
 
 application = get_wsgi_application()
 
