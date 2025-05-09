@@ -66,7 +66,7 @@ urlpatterns = [
     path('auth/dev-token/', DevTokenView.as_view(), name='dev-token'),
     
     # Render Health-Checker
-    path('healthcheck/', healthcheck),
+    path('health/', healthcheck),
 ]
 
 

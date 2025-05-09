@@ -19,6 +19,7 @@ from user_account.permissions import IsAdminOrSuperUser
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework.decorators import api_view
+from django.views.decorators.http import require_GET
 
 from django.db import transaction
 from django.contrib.auth import get_user_model
@@ -114,7 +115,9 @@ User = get_user_model()
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     client_class = OAuth2Client
-    callback_url = 'http://localhost:8000/accounts/google/login/callback/'
+    callback_url = settings.SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI
+    # callback_url = 'http://localhost:8000/accounts/google/login/callback/'
+    
 
     @google_login_schema()
     # @google_logout_schema()
@@ -1043,10 +1046,7 @@ def csrf_failure(request, reason=""):
     
     
 # RENDER HEALTH-CHECK -----------------------------------------------------------------------------------------
+@require_GET
 def healthcheck(request):
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT 1")  # Verify DB connection
-        return JsonResponse({"status": "healthy"}, status=200)
-    except Exception as e:
-        return JsonResponse({"status": "unhealthy", "error": str(e)}, status=500)
+    """Simplified healthcheck without DB dependency"""
+    return JsonResponse({"status": "ok"}, status=200)

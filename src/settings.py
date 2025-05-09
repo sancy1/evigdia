@@ -288,7 +288,32 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'same-origin'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+# ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+# Initialize empty list
+ALLOWED_HOSTS = []
+
+# Production configuration (Render)
+if os.environ.get('RENDER'):
+    ALLOWED_HOSTS.extend([
+        'evigdia.onrender.com',  # Your specific domain
+        '.onrender.com'          # Wildcard for all Render domains
+    ])
+
+# Local development
+if DEBUG:
+    ALLOWED_HOSTS.extend([
+        'localhost',
+        '127.0.0.1',
+        '[::1]'  # IPv6 localhost
+    ])
+
+# Optional: Keep environment variable override as fallback
+env_hosts = os.getenv('ALLOWED_HOSTS')
+if env_hosts:
+    ALLOWED_HOSTS.extend(host.strip() for host in env_hosts.split(','))
+
+# Ensure no duplicates
+ALLOWED_HOSTS = list(set(ALLOWED_HOSTS))
 
 # HTTPS Settings (auto-configure based on environment)
 is_development = DEBUG or any(host in ['127.0.0.1', 'localhost'] for host in ALLOWED_HOSTS)
@@ -313,54 +338,80 @@ API_BASE_URL = os.getenv('API_BASE_URL', 'evigdia.onrender.com')  # Default for 
 LOGIN_REDIRECT_URL = os.getenv('LOGIN_REDIRECT_URL', '/api/user/profile/')
 LOGOUT_REDIRECT_URL = os.getenv('LOGOUT_REDIRECT_URL', '/')
 
-# # Enhanced CORS settings
-# def validate_origin(url):
-#     parsed = urlparse(url)
-#     if not all([parsed.scheme, parsed.netloc]):
-#         raise ImproperlyConfigured(f"Invalid origin URL: {url}")
-#     return url
+# Dynamic callback URL configuration
+if DEBUG:
+    # Development settings (localhost)
+    SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI = 'http://localhost:8000/accounts/google/login/callback/'
+    API_BASE_URL = 'http://localhost:8000'
+else:
+    # Production settings (Render)
+    SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI = os.getenv(
+        'CALLBACK_URL',
+        'http://evigdia.onrender.com/accounts/google/login/callback/'  # Default fallback
+    )
+    API_BASE_URL = os.getenv(
+        'API_BASE_URL', 
+        'https://evigdia.onrender.com'  # Default fallback
+    )
 
-# # Get and validate all origins
-# CORS_ALLOWED_ORIGINS = [
-#     validate_origin(API_BASE_URL),
-#     *[validate_origin(origin) for origin in config(
-#         'DEV_CORS_ORIGINS',
-#         default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000',
-#         cast=lambda v: [s.strip() for s in v.split(',')]
-#     )]
-# ]
+
+
+
+# settings.py
+import os
+from urllib.parse import urlparse
+
+# Core configuration (must come first)
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+API_BASE_URL = 'http://localhost:8000' if DEBUG else 'https://evigdia.onrender.com'
 
 def validate_origin(url):
-    parsed = urlparse(url)
-    if not all([parsed.scheme, parsed.netloc]):
+    """Strict origin validation with security checks"""
+    parsed = urlparse(url.strip())
+    if not (parsed.scheme and parsed.netloc):
         raise ValueError(f"Invalid origin URL: {url}")
-    return url
+    
+    # Security checks
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Invalid scheme in origin: {url}")
+    if parsed.path or parsed.query or parsed.fragment:
+        raise ValueError(f"Origin should not contain path/query/fragment: {url}")
+    
+    return f"{parsed.scheme}://{parsed.netloc}"
 
-# Get CORS origins from environment variable
-DEFAULT_CORS = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000'
-dev_origins = os.getenv('DEV_CORS_ORIGINS', DEFAULT_CORS).split(',')
+def get_cors_origins():
+    """Dynamically generates CORS origins based on environment"""
+    base_origins = [
+        API_BASE_URL,
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000'
+    ]
+    
+    if not DEBUG:
+        base_origins.extend([
+            'https://evigdia.onrender.com',
+            'https://*.onrender.com'
+        ])
+    
+    env_origins = os.getenv('EXTRA_CORS_ORIGINS', '').split(',')
+    
+    validated_origins = set()
+    for origin in base_origins + [eo.strip() for eo in env_origins if eo.strip()]:
+        try:
+            validated_origins.add(validate_origin(origin))
+        except ValueError as e:
+            if DEBUG:
+                print(f"Warning: {e}")
+            continue
+            
+    return list(validated_origins)
 
-CORS_ALLOWED_ORIGINS = [
-    validate_origin(API_BASE_URL),
-    *[validate_origin(origin.strip()) for origin in dev_origins if origin.strip()]
-]
-
-
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     'http://127.0.0.1:8000',
-#     'http://localhost:8000',
-#     # Add your production domains here
-# ]
-
-# For development, you might want to allow all (remove in production)
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
-    CORS_ALLOWED_ORIGINS = []  # Clear the specific origins in dev
-else:
-    CORS_ALLOW_ALL_ORIGINS = False
-
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = get_cors_origins() if not DEBUG else []
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = [
     'Content-Type', 
@@ -368,7 +419,6 @@ CORS_EXPOSE_HEADERS = [
     'Authorization',
     'X-Requested-With',
 ]
-
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
@@ -377,7 +427,6 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
-
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -390,22 +439,102 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# Production hardening
+if not DEBUG:
+    CORS_PREFLIGHT_MAX_AGE = 86400  # 1 day
+    CORS_URLS_REGEX = r'^/api/.*$'
+    CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()  # Now properly defined
 
-# Enhanced cookie settings
+# Cookie settings
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = not DEBUG  # True in production
-SESSION_COOKIE_SAMESITE = 'Lax'  # Strict if you don't need cross-site
-SESSION_COOKIE_AGE = 86400  # 1 day in seconds
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_AGE = 86400
+
+# CSRF settings (must come after CORS_ALLOWED_ORIGINS is defined)
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = False  # Required for React
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_HEADER_NAME = 'X-CSRFToken'
+CSRF_FAILURE_VIEW = 'user_account.views.csrf_failure'
 
 
-# Change to these exact settings:
-CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', str(not DEBUG)).lower() in ('true', '1', 't')
-CSRF_COOKIE_HTTPONLY = False  # Must be False for React
-CSRF_COOKIE_SAMESITE = 'Lax'  # Allows OAuth redirects
-CSRF_HEADER_NAME = 'X-CSRFToken'  # Standard React header
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
-CSRF_FAILURE_VIEW = 'user_account.views.csrf_failure'  # Custom JSON response
+# # def validate_origin(url):
+# #     parsed = urlparse(url)
+# #     if not all([parsed.scheme, parsed.netloc]):
+# #         raise ValueError(f"Invalid origin URL: {url}")
+# #     return url
+
+# # # Get CORS origins from environment variable
+# # DEFAULT_CORS = 'https://evigdia.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000'
+# # dev_origins = os.getenv('DEV_CORS_ORIGINS', DEFAULT_CORS).split(',')
+
+# # CORS_ALLOWED_ORIGINS = [
+# #     validate_origin(API_BASE_URL),
+# #     *[validate_origin(origin.strip()) for origin in dev_origins if origin.strip()]
+# # ]
+
+
+# # CORS_ALLOWED_ORIGINS = [
+# #     "http://localhost:3000",
+# #     "http://127.0.0.1:3000",
+# #     'http://127.0.0.1:8000',
+# #     'http://localhost:8000',
+# #     # Add your production domains here
+# # ]
+
+# # For development, you might want to allow all (remove in production)
+# if DEBUG:
+#     CORS_ALLOW_ALL_ORIGINS = True
+#     CORS_ALLOWED_ORIGINS = []  # Clear the specific origins in dev
+# else:
+#     CORS_ALLOW_ALL_ORIGINS = False
+
+# CORS_ALLOW_CREDENTIALS = True
+# CORS_EXPOSE_HEADERS = [
+#     'Content-Type', 
+#     'X-CSRFToken',
+#     'Authorization',
+#     'X-Requested-With',
+# ]
+
+# CORS_ALLOW_METHODS = [
+#     'DELETE',
+#     'GET',
+#     'OPTIONS',
+#     'PATCH',
+#     'POST',
+#     'PUT',
+# ]
+
+# CORS_ALLOW_HEADERS = [
+#     'accept',
+#     'accept-encoding',
+#     'authorization',
+#     'content-type',
+#     'dnt',
+#     'origin',
+#     'user-agent',
+#     'x-csrftoken',
+#     'x-requested-with',
+# ]
+
+
+# # Enhanced cookie settings
+# SESSION_COOKIE_HTTPONLY = True
+# SESSION_COOKIE_SECURE = not DEBUG  # True in production
+# SESSION_COOKIE_SAMESITE = 'Lax'  # Strict if you don't need cross-site
+# SESSION_COOKIE_AGE = 86400  # 1 day in seconds
+# CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+
+
+# # Change to these exact settings:
+# CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', str(not DEBUG)).lower() in ('true', '1', 't')
+# CSRF_COOKIE_HTTPONLY = False  # Must be False for React
+# CSRF_COOKIE_SAMESITE = 'Lax'  # Allows OAuth redirects
+# CSRF_HEADER_NAME = 'X-CSRFToken'  # Standard React header
+# CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
+# CSRF_FAILURE_VIEW = 'user_account.views.csrf_failure'  # Custom JSON response
 
 
 # ======================== REST Framework Settings ========================
@@ -695,7 +824,7 @@ FRONTEND_URL = os.getenv('FRONTEND_URL')
 
     
 # ======================== Render Ping ========================
-RENDER_HEALTHCHECK_URL = "https://evigdia.onrender.com/healthcheck"  # Your Render URL
+RENDER_HEALTHCHECK_URL = "https://evigdia.onrender.com/health"  # Your Render URL
 RENDER_KEEPALIVE_ENABLED = True  # Optional disable flag
 
 
