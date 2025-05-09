@@ -1,10 +1,9 @@
-
 services:
   - type: web
     name: EvigDia
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn src.wsgi:application --workers 4 --threads 2 --timeout 120 --bind 0.0.0.0:10000"
+    startCommand: "gunicorn src.src.wsgi:application --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -15,13 +14,15 @@ services:
       - key: DEBUG
         value: "False"
       - key: ALLOWED_HOSTS
-        value: "evigdia.onrender.com,localhost"  # Added localhost for safety
+        value: "evigdia.onrender.com,localhost"
       - key: RENDER_HEALTHCHECK_URL
         value: "https://evigdia.onrender.com/health"
       - key: CSRF_TRUSTED_ORIGINS
         value: "https://evigdia.onrender.com"
       - key: PYTHONPATH
-        value: "/opt/render/project/src"  # Critical for module resolution
+        value: "/opt/render/project/src"  # Points to parent src directory
+      - key: DJANGO_SETTINGS_MODULE
+        value: "src.settings"  # Explicitly set
     healthCheckPath: /health
     autoDeploy: true
     plan: free
