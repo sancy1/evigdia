@@ -4,7 +4,7 @@ services:
     name: EvigDia
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn src.wsgi:application --workers 4 --threads 2 --timeout 120 --bind 0.0.0.0:10000"
+    startCommand: "gunicorn src.wsgi:application --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
