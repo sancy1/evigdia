@@ -26,7 +26,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 # With default values and type conversion
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'evigdia.onrender.com,localhost,127.0.0.1').split(',')
 
 # API keys (required - no defaults)
 PRICE_API_KEY = os.getenv('PRICE_API_KEY')
@@ -287,6 +287,8 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'same-origin'
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 
 # HTTPS Settings (auto-configure based on environment)
 is_development = DEBUG or any(host in ['127.0.0.1', 'localhost'] for host in ALLOWED_HOSTS)
