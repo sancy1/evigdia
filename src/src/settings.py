@@ -1,6 +1,6 @@
 
 from pathlib import Path
-from decouple import config
+# from decouple import config
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
@@ -21,13 +21,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # DEBUG = True
 # ALLOWED_HOSTS = []
 
-SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')
+# Required - no default (will raise error if missing)
+SECRET_KEY = os.getenv('SECRET_KEY')  
 
-PRICE_API_KEY = config('PRICE_API_KEY')
-APP_MANAGEMENT_API_KEY = config('APP_MANAGEMENT_API_KEY')
-EVIGDIA_WEBSITE_URL = config('EVIGDIA_WEBSITE_URL')
+# With default values and type conversion
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# API keys (required - no defaults)
+PRICE_API_KEY = os.getenv('PRICE_API_KEY')
+APP_MANAGEMENT_API_KEY = os.getenv('APP_MANAGEMENT_API_KEY')
+EVIGDIA_WEBSITE_URL = os.getenv('EVIGDIA_WEBSITE_URL')
 
 # Application definition
 INSTALLED_APPS = [
@@ -248,8 +252,8 @@ AUTHENTICATION_BACKENDS = [
 # Axes configuration
 AXES = {
     # Basic Protection
-    'FAILURE_LIMIT': config('AXES_FAILURE_LIMIT', default=10, cast=int),
-    'COOLOFF_TIME': timedelta(hours=config('AXES_COOLOFF_TIME', default=1, cast=int)),
+    'FAILURE_LIMIT': int(os.getenv('AXES_FAILURE_LIMIT', '10')),  # Convert string to int
+    'COOLOFF_TIME': timedelta(hours=int(os.getenv('AXES_COOLOFF_TIME', '1'))),
     # 'FAILURE_LIMIT': 10,  # Lock after 10 attempts
     # 'COOLOFF_TIME': timedelta(hours=1),  # Precise 1-hour lockout
     
@@ -303,26 +307,43 @@ else:
     SECURE_SSL_REDIRECT = False
 
 # Redirect URL after successful social auth
-API_BASE_URL = config('API_BASE_URL', default='evigdia.onrender.com')
-LOGIN_REDIRECT_URL = config('LOGIN_REDIRECT_URL', default='/api/user/profile/')
-LOGOUT_REDIRECT_URL = config('LOGOUT_REDIRECT_URL', default='/')
+API_BASE_URL = os.getenv('API_BASE_URL', 'evigdia.onrender.com')  # Default for development
+LOGIN_REDIRECT_URL = os.getenv('LOGIN_REDIRECT_URL', '/api/user/profile/')
+LOGOUT_REDIRECT_URL = os.getenv('LOGOUT_REDIRECT_URL', '/')
 
-# Enhanced CORS settings
+# # Enhanced CORS settings
+# def validate_origin(url):
+#     parsed = urlparse(url)
+#     if not all([parsed.scheme, parsed.netloc]):
+#         raise ImproperlyConfigured(f"Invalid origin URL: {url}")
+#     return url
+
+# # Get and validate all origins
+# CORS_ALLOWED_ORIGINS = [
+#     validate_origin(API_BASE_URL),
+#     *[validate_origin(origin) for origin in config(
+#         'DEV_CORS_ORIGINS',
+#         default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000',
+#         cast=lambda v: [s.strip() for s in v.split(',')]
+#     )]
+# ]
+
 def validate_origin(url):
     parsed = urlparse(url)
     if not all([parsed.scheme, parsed.netloc]):
-        raise ImproperlyConfigured(f"Invalid origin URL: {url}")
+        raise ValueError(f"Invalid origin URL: {url}")
     return url
 
-# Get and validate all origins
+# Get CORS origins from environment variable
+DEFAULT_CORS = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000'
+dev_origins = os.getenv('DEV_CORS_ORIGINS', DEFAULT_CORS).split(',')
+
 CORS_ALLOWED_ORIGINS = [
     validate_origin(API_BASE_URL),
-    *[validate_origin(origin) for origin in config(
-        'DEV_CORS_ORIGINS',
-        default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000',
-        cast=lambda v: [s.strip() for s in v.split(',')]
-    )]
+    *[validate_origin(origin.strip()) for origin in dev_origins if origin.strip()]
 ]
+
+
 # CORS_ALLOWED_ORIGINS = [
 #     "http://localhost:3000",
 #     "http://127.0.0.1:3000",
@@ -377,7 +398,7 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS.copy()
 
 
 # Change to these exact settings:
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', cast=bool, default=not DEBUG)
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', str(not DEBUG)).lower() in ('true', '1', 't')
 CSRF_COOKIE_HTTPONLY = False  # Must be False for React
 CSRF_COOKIE_SAMESITE = 'Lax'  # Allows OAuth redirects
 CSRF_HEADER_NAME = 'X-CSRFToken'  # Standard React header
@@ -431,19 +452,19 @@ if DEBUG:{
 # JWT settings
 # ======================== JWT Settings ========================
 SIMPLE_JWT = {
-    # Token Lifetimes
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60, cast=int)),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=config('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7, cast=int)),
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=config('JWT_SLIDING_TOKEN_LIFETIME_MINUTES', default=60, cast=int)),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=config('JWT_SLIDING_TOKEN_REFRESH_LIFETIME_DAYS', default=1, cast=int)),
+   # Token Lifetimes
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', '60'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.getenv('JWT_REFRESH_TOKEN_LIFETIME_DAYS', '7'))),
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_SLIDING_TOKEN_LIFETIME_MINUTES', '60'))),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=int(os.getenv('JWT_SLIDING_TOKEN_REFRESH_LIFETIME_DAYS', '1'))),
     
     # Behavior Flags
-    'ROTATE_REFRESH_TOKENS': config('JWT_ROTATE_REFRESH_TOKENS', default=True, cast=bool),
-    'BLACKLIST_AFTER_ROTATION': config('JWT_BLACKLIST_AFTER_ROTATION', default=True, cast=bool),
-    'UPDATE_LAST_LOGIN': config('JWT_UPDATE_LAST_LOGIN', default=True, cast=bool),
+    'ROTATE_REFRESH_TOKENS': os.getenv('JWT_ROTATE_REFRESH_TOKENS', 'True').lower() in ('true', '1', 't'),
+    'BLACKLIST_AFTER_ROTATION': os.getenv('JWT_BLACKLIST_AFTER_ROTATION', 'True').lower() in ('true', '1', 't'),
+    'UPDATE_LAST_LOGIN': os.getenv('JWT_UPDATE_LAST_LOGIN', 'True').lower() in ('true', '1', 't'),
     
     # Algorithm and Signing
-    'ALGORITHM': config('JWT_ALGORITHM', default='HS256'),
+    'ALGORITHM': os.getenv('JWT_ALGORITHM', 'HS256'),
     'SIGNING_KEY': SECRET_KEY,  # From Django's default SECRET_KEY
     
     # These typically don't need env configuration
@@ -507,8 +528,8 @@ REST_AUTH = {
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': config('GOOGLE_CLIENT_ID'),
-            'secret': config('GOOGLE_CLIENT_SECRET'),
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),  
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),  
             'key': ''
         },
         'SCOPE': [
@@ -523,8 +544,8 @@ SOCIALACCOUNT_PROVIDERS = {
     },
     'microsoft': {
         'APP': {
-            'client_id': config('MICROSOFT_CLIENT_ID'),
-            'secret': config('MICROSOFT_CLIENT_SECRET'),
+            'client_id': os.getenv('MICROSOFT_CLIENT_ID'),
+            'secret': os.getenv('MICROSOFT_CLIENT_SECRET'),
             'key': ''
         },
         'SCOPE': [
@@ -636,10 +657,10 @@ CACHES = {
 }
 
 # In production, switch to Redis if available
-if not DEBUG and config('REDIS_URL', default=''):
+if not DEBUG and os.getenv('REDIS_URL'):
     CACHES['default'] = {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': config('REDIS_URL'),
+        'LOCATION': os.getenv('REDIS_URL'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'SOCKET_CONNECT_TIMEOUT': 5,
@@ -651,24 +672,24 @@ if not DEBUG and config('REDIS_URL', default=''):
     
 
 # ======================== Sentry Configuration ========================
-if not DEBUG and config('SENTRY_DSN', default=''):
+if not DEBUG and os.getenv('SENTRY_DSN'):
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration
 
     sentry_sdk.init(
-        dsn=config('SENTRY_DSN'),
+        dsn=os.getenv('SENTRY_DSN'),  # Required Sentry Data Source Name
         integrations=[DjangoIntegration()],
-        traces_sample_rate=0.2,
-        send_default_pii=True,
-        environment=config('ENVIRONMENT', default='production'),
+        traces_sample_rate=float(os.getenv('SENTRY_TRACES_SAMPLE_RATE', '0.2')),
+        send_default_pii=os.getenv('SENTRY_SEND_DEFAULT_PII', 'True').lower() in ('true', '1', 't'),
+        environment=os.getenv('ENVIRONMENT', 'production'),
     )
     
     
 # ======================== Brevo Email Configuration ========================
-BREVO_API_KEY = config('BREVO_API_KEY')
-EMAIL_SENDER_NAME = config('EMAIL_SENDER_NAME')
-EMAIL_SENDER_EMAIL = config('EMAIL_SENDER_EMAIL')
-FRONTEND_URL = config('FRONTEND_URL')
+BREVO_API_KEY = os.getenv('BREVO_API_KEY')
+EMAIL_SENDER_NAME = os.getenv('EMAIL_SENDER_NAME')
+EMAIL_SENDER_EMAIL = os.getenv('EMAIL_SENDER_EMAIL')
+FRONTEND_URL = os.getenv('FRONTEND_URL')
 
     
 # ======================== Render Ping ========================
