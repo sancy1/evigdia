@@ -1,14 +1,10 @@
+
 #!/bin/bash
 set -o errexit
 
-# Install dependencies
-pip install --upgrade pip
+# Explicitly set Python path
+export PYTHONPATH="${PYTHONPATH}:/opt/render/project/src"
+
 pip install -r requirements.txt
-
-# Apply database migrations
-if [ "$RENDER" = "true" ]; then
-  python manage.py migrate --noinput
-fi
-
-# Collect static files
 python manage.py collectstatic --noinput
+python manage.py migrate
