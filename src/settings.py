@@ -824,7 +824,7 @@ FRONTEND_URL = os.getenv('FRONTEND_URL')
 
     
 # ======================== Render Ping ========================
-RENDER_HEALTHCHECK_URL = "https://evigdia.onrender.com/health"  # Your Render URL
+RENDER_HEALTHCHECK_URL = "https://evigdia.onrender.com/api/user/health/"
 RENDER_KEEPALIVE_ENABLED = True  # Optional disable flag
 
 

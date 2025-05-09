@@ -1,6 +1,6 @@
 
 
-# backend/apps/user_account/adapters.py
+# /user_account/adapters.py
 
 import logging
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from .models import Profile
 import requests
+from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 import uuid
@@ -106,7 +107,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
 class CustomAccountAdapter(DefaultAccountAdapter):
     def get_login_redirect_url(self, request):
-        return '/api/profile/'
+        return settings.LOGIN_REDIRECT_URL
 
     def save_user(self, request, user, form, commit=True):
         user = super().save_user(request, user, form, commit=False)
