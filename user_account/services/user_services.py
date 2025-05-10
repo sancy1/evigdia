@@ -1,4 +1,6 @@
 
+# user_account/services/user_services.py
+
 import logging
 from django.contrib.auth import get_user_model
 from ..services.email_service import EmailService

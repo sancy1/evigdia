@@ -1,4 +1,6 @@
 
+# user_account/views.py
+
 import logging
 from rest_framework import serializers, generics, permissions, status
 from rest_framework.response import Response
@@ -358,32 +360,44 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     http_method_names = ['get', 'patch', 'put', 'delete']
     
     def get_object(self):
-        """Get or create profile using service with custom error handling"""
+        """Get or create profile with proper social auth handling"""
         try:
-            return ProfileService.get_or_create_profile(self.request.user)
-        except ProfileServiceError as e:
-            logger.error(f"Profile service error for user {self.request.user.id}: {str(e)}")
-            raise ProfileAccessError(detail=str(e))
+            user = self.request.user
+            # Check for social auth through proper relation
+            is_social_auth = hasattr(user, 'socialaccount') and user.socialaccount.exists()
+            
+            profile, created = Profile.objects.get_or_create(user=user)
+            
+            if created:
+                # Set defaults based on available data
+                name = user.get_full_name() or user.email.split('@')[0]
+                profile.headline = f"{name}'s Profile"
+                profile.show_email = False
+                profile.show_phone = False
+                profile.show_location = True
+                
+                # Set profile picture from social auth if available
+                if is_social_auth:
+                    social_account = user.socialaccount.first()
+                    if social_account and hasattr(social_account, 'extra_data'):
+                        picture = social_account.extra_data.get('picture', '')
+                        if picture:
+                            profile.profile_image_url = picture
+                
+                profile.save()
+            
+            return profile
+            
         except Exception as e:
-            logger.error(f"Unexpected error accessing profile for user {self.request.user.id}: {str(e)}")
-            return Response(
-                {
-                    'status': 'error',
-                    'code': 'unexpected_profile_access_error',
-                    'message': 'An unexpected error occurred while accessing the profile.'
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
+            logger.error(f"Profile retrieval error for user {self.request.user.id}: {str(e)}")
+            raise ProfileRetrieveError("Failed to retrieve profile data")
+        
 
     @swagger_auto_schema(**get_profile_schema()['retrieve'])
     def retrieve(self, request, *args, **kwargs):
-        """Enhanced retrieve with custom error handling"""
+        """Enhanced retrieve with proper error handling"""
         try:
             instance = self.get_object()
-            if isinstance(instance, Response):  # If a generic error occurred in get_object
-                return instance
-
             serializer = self.get_serializer(instance)
 
             response_data = {
@@ -392,7 +406,7 @@ class ProfileView(generics.RetrieveUpdateAPIView):
                     'profile': serializer.data,
                     'meta': {
                         'is_complete': ProfileService.is_profile_complete(instance),
-                        'last_updated': instance.updated_at if hasattr(instance, 'updated_at') else None
+                        'last_updated': instance.updated_at
                     }
                 }
             }
@@ -405,11 +419,84 @@ class ProfileView(generics.RetrieveUpdateAPIView):
                 }
 
             return Response(response_data)
-        except ProfileAccessError as e:
-            raise e  # Re-raise the custom exception to be handled by DRF's exception handling
-        except Exception as e:
-            logger.error(f"Profile retrieve failed: {str(e)}")
-            raise ProfileRetrieveError(detail='Failed to retrieve profile data.')
+            
+        except ProfileRetrieveError as e:
+            return Response(
+                {
+                    'status': 'error',
+                    'code': 'profile_retrieve_error',
+                    'message': str(e)
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        #           return Response(response_data)
+        # except ProfileAccessError as e:
+        #     raise e  # Re-raise the custom exception to be handled by DRF's exception handling
+        # except Exception as e:
+        #     logger.error(f"Profile retrieve failed: {str(e)}")
+        #     raise ProfileRetrieveError(detail='Failed to retrieve profile data.')
+            
+            
+# class ProfileView(generics.RetrieveUpdateAPIView):
+#     serializer_class = ProfileSerializer
+#     permission_classes = [IsAuthenticated]
+#     http_method_names = ['get', 'patch', 'put', 'delete']
+    
+#     def get_object(self):
+#         """Get or create profile using service with custom error handling"""
+#         try:
+#             return ProfileService.get_or_create_profile(self.request.user)
+#         except ProfileServiceError as e:
+#             logger.error(f"Profile service error for user {self.request.user.id}: {str(e)}")
+#             raise ProfileAccessError(detail=str(e))
+#         except Exception as e:
+#             logger.error(f"Unexpected error accessing profile for user {self.request.user.id}: {str(e)}")
+#             return Response(
+#                 {
+#                     'status': 'error',
+#                     'code': 'unexpected_profile_access_error',
+#                     'message': 'An unexpected error occurred while accessing the profile.'
+#                 },
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+
+    # @swagger_auto_schema(**get_profile_schema()['retrieve'])
+    # def retrieve(self, request, *args, **kwargs):
+    #     """Enhanced retrieve with custom error handling"""
+    #     try:
+    #         instance = self.get_object()
+    #         if isinstance(instance, Response):  # If a generic error occurred in get_object
+    #             return instance
+
+    #         serializer = self.get_serializer(instance)
+
+    #         response_data = {
+    #             'status': 'success',
+    #             'data': {
+    #                 'profile': serializer.data,
+    #                 'meta': {
+    #                     'is_complete': ProfileService.is_profile_complete(instance),
+    #                     'last_updated': instance.updated_at if hasattr(instance, 'updated_at') else None
+    #                 }
+    #             }
+    #         }
+
+    #         if settings.DEBUG:
+    #             refresh = RefreshToken.for_user(request.user)
+    #             response_data['data']['tokens'] = {
+    #                 'access': str(refresh.access_token),
+    #                 'refresh': str(refresh)
+    #             }
+
+        #     return Response(response_data)
+        # except ProfileAccessError as e:
+        #     raise e  # Re-raise the custom exception to be handled by DRF's exception handling
+        # except Exception as e:
+        #     logger.error(f"Profile retrieve failed: {str(e)}")
+        #     raise ProfileRetrieveError(detail='Failed to retrieve profile data.')
+
 
 
     @swagger_auto_schema(**get_profile_schema()['partial_update'])

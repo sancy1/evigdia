@@ -1,6 +1,6 @@
 
 
-# backend/apps/user_account/serializers.py
+# user_account/serializers.py
 
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
@@ -101,50 +101,177 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 
+
+
+
+
+
+
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,
         required=False,
         style={'input_type': 'password'}
     )
-    
-    role = serializers.CharField(read_only=True)
-    default=UserRole.USER.value
+
+    role = serializers.CharField(
+        read_only=False,  # Allow writing but control in update()
+        required=False,
+        default=UserRole.USER.value  # This is correct.
+    )
+
     is_verified = serializers.BooleanField(read_only=True)
-    
+
     class Meta:
         model = CustomUser
         fields = (
-            'id', 'email', 'password', 'first_name', 'last_name', 
+            'id', 'email', 'password', 'first_name', 'last_name',
             'profile_picture', 'is_verified', 'role', 'date_joined'
-
         )
-        read_only_fields = (
-            'id', 'is_verified', 'role', 'date_joined'
-        )
-        extra_kwargs = {
-            'password': {'write_only': True}
-        }
+        read_only_fields = ('id', 'is_verified', 'date_joined')
+        extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
+        """Handle both regular and social auth user creation"""
+        # Check for social auth via SocialAccount instead of direct fields
+        social_auth = hasattr(self.context.get('request'), 'socialaccount')
+
         # Only require password if not social auth
-        if not validated_data.get('google_id') and not validated_data.get('microsoft_id'):
-            if not validated_data.get('password'):
-                raise serializers.ValidationError(
-                    {"password": "Password is required for non-OAuth users"}
-                )
-        
+        if not social_auth and not validated_data.get('password'):
+            raise serializers.ValidationError(
+                {"password": "Password is required for non-OAuth users"}
+            )
+
         # Hash password if provided
         if 'password' in validated_data:
             validated_data['password'] = make_password(validated_data['password'])
-        
+
+        #  Important:  DO NOT set the role here for social auth.  The adapter is responsible.
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        # Handle password update
+        """Update user with admin-controlled role changes"""
+        request = self.context.get('request')
+
+        # Only allow admin/superuser to update role
+        if 'role' in validated_data:
+            if not (request and (request.user.is_staff or request.user.is_superuser)):
+                validated_data.pop('role')
+            elif validated_data['role'] not in [role.value for role in UserRole]:
+                raise serializers.ValidationError({"role": "Invalid role specified"})
+
+        # Handle password update if needed
         if 'password' in validated_data:
             validated_data['password'] = make_password(validated_data['password'])
+
         return super().update(instance, validated_data)
+
+
+# class UserSerializer(serializers.ModelSerializer):
+#     password = serializers.CharField(
+#         write_only=True,
+#         required=False,
+#         style={'input_type': 'password'}
+#     )
+    
+#     role = serializers.CharField(
+#         read_only=False,  # Allow writing but control in update()
+#         required=False,
+#         default=UserRole.USER.value
+#     )
+    
+#     is_verified = serializers.BooleanField(read_only=True)
+    
+#     class Meta:
+#         model = CustomUser
+#         fields = (
+#             'id', 'email', 'password', 'first_name', 'last_name', 
+#             'profile_picture', 'is_verified', 'role', 'date_joined'
+#         )
+#         read_only_fields = ('id', 'is_verified', 'date_joined')
+#         extra_kwargs = {'password': {'write_only': True}}
+
+#     def create(self, validated_data):
+#         """Handle both regular and social auth user creation"""
+#         # Check for social auth via SocialAccount instead of direct fields
+#         social_auth = hasattr(self.context.get('request'), 'socialaccount')
+        
+#         # Only require password if not social auth
+#         if not social_auth and not validated_data.get('password'):
+#             raise serializers.ValidationError(
+#                 {"password": "Password is required for non-OAuth users"}
+#             )
+        
+#         # Hash password if provided
+#         if 'password' in validated_data:
+#             validated_data['password'] = make_password(validated_data['password'])
+        
+#         return super().create(validated_data)
+
+#     def update(self, instance, validated_data):
+#         """Update user with admin-controlled role changes"""
+#         request = self.context.get('request')
+        
+#         # Only allow admin/superuser to update role
+#         if 'role' in validated_data:
+#             if not (request and (request.user.is_staff or request.user.is_superuser)):
+#                 validated_data.pop('role')
+#             elif validated_data['role'] not in [role.value for role in UserRole]:
+#                 raise serializers.ValidationError({"role": "Invalid role specified"})
+        
+#         # Handle password update if needed
+#         if 'password' in validated_data:
+#             validated_data['password'] = make_password(validated_data['password'])
+            
+#         return super().update(instance, validated_data)
+    
+    
+    
+
+# class UserSerializer(serializers.ModelSerializer):
+#     password = serializers.CharField(
+#         write_only=True,
+#         required=False,
+#         style={'input_type': 'password'}
+#     )
+    
+#     role = serializers.CharField(read_only=True)
+#     default=UserRole.USER.value
+#     is_verified = serializers.BooleanField(read_only=True)
+    
+#     class Meta:
+#         model = CustomUser
+#         fields = (
+#             'id', 'email', 'password', 'first_name', 'last_name', 
+#             'profile_picture', 'is_verified', 'role', 'date_joined'
+
+#         )
+#         read_only_fields = (
+#             'id', 'is_verified', 'role', 'date_joined'
+#         )
+#         extra_kwargs = {
+#             'password': {'write_only': True}
+#         }
+
+#     def create(self, validated_data):
+#         # Only require password if not social auth
+#         if not validated_data.get('google_id') and not validated_data.get('microsoft_id'):
+#             if not validated_data.get('password'):
+#                 raise serializers.ValidationError(
+#                     {"password": "Password is required for non-OAuth users"}
+#                 )
+        
+#         # Hash password if provided
+#         if 'password' in validated_data:
+#             validated_data['password'] = make_password(validated_data['password'])
+        
+#         return super().create(validated_data)
+
+#     def update(self, instance, validated_data):
+#         # Handle password update
+#         if 'password' in validated_data:
+#             validated_data['password'] = make_password(validated_data['password'])
+#         return super().update(instance, validated_data)
     
 
 
