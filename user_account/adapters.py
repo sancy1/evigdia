@@ -259,8 +259,8 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             raise ImmediateHttpResponse(
                 JsonResponse({
                     'status': 'error',
-                    'code': 'social_login_failed',
-                    'message': 'An error occurred during social login processing.'
+                    'code': 'social_login_failed | existing_regular_account',
+                    'message': 'An error occurred during social login processing. | This email is registered with a password. Please log in directly.'
                 }, status=400)
             )
 
